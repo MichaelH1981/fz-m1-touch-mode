@@ -3,9 +3,8 @@
 [Deutsche Fassung](README.md)
 
 > **Authorship:** Research, static analysis, protocol reconstruction,
-> implementation, testing, and documentation were performed by **OpenAI Codex**
-> at Michael Hartlapp's request. Michael provided the test hardware and authorized
-> and supervised the work performed on the device.
+> implementation, testing, and documentation were performed by **OpenAI Codex**.
+> The test hardware was provided by the repository maintainer.
 
 This project switches the Sharp `04dd:9762` touchscreen controller in a Panasonic
 Toughpad FZ-M1 MK3 to Panasonic's original **Pen/Touch mode**, without Windows.
@@ -102,4 +101,4 @@ Community posts were not used as the evidentiary basis for proprietary HID write
 
 ## License
 
-[MIT](LICENSE) – Copyright © 2026 Michael Hartlapp.
+[MIT](LICENSE) – Copyright © 2026 fz-m1-touch-mode contributors.
