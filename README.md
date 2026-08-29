@@ -3,9 +3,7 @@
 [English version](README.en.md)
 
 > **Urheberschaft:** Recherche, statische Analyse, Protokollrekonstruktion,
-> Implementierung, Tests und Dokumentation wurden von **OpenAI Codex** im Auftrag
-> von Michael Hartlapp durchgeführt. Michael stellte die Testhardware bereit und
-> autorisierte und begleitete die Arbeiten am Gerät.
+> Implementierung, Tests und Dokumentation wurden von **OpenAI Codex** durchgeführt.
 
 Diese Lösung schaltet den Sharp-Touchcontroller `04dd:9762` des Panasonic Toughpad
 FZ-M1 MK3 ohne Windows in Panasonics originalen **Pen/Touch-Modus**. Finger und der
@@ -141,4 +139,4 @@ Community-Beiträge waren dafür keine Beweisgrundlage.
 
 ## Lizenz
 
-[MIT](LICENSE) – Copyright © 2026 Michael Hartlapp.
+[MIT](LICENSE) – Copyright © 2026 Michael  .
