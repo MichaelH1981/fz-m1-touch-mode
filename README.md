@@ -139,4 +139,4 @@ Community-Beiträge waren dafür keine Beweisgrundlage.
 
 ## Lizenz
 
-[MIT](LICENSE) – Copyright © 2026 Michael  .
+[MIT](LICENSE) – Copyright © 2026 fz-m1-touch-mode contributors.
