@@ -1,0 +1,12 @@
+[Unit]
+Description=Set Panasonic FZ-M1 Sharp touchscreen mode on %I
+BindsTo=dev-%i.device
+After=dev-%i.device
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/fz-m1-touch-mode pen-touch --device /dev/%I
+RemainAfterExit=yes
+Restart=on-failure
+RestartSec=2s
+
