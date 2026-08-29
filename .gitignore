@@ -1,0 +1,6 @@
+# Static-analysis artifacts and device-specific captures are intentionally private.
+logs/
+tools/ExportDecompiled.java
+tools/collect-baseline.sh
+__pycache__/
+*.pyc
