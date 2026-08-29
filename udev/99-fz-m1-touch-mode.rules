@@ -1,0 +1,2 @@
+# Panasonic Toughpad FZ-M1 MK3 / Sharp 07EA0004
+ACTION=="add", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="04dd", ATTRS{idProduct}=="9762", TAG+="systemd", ENV{SYSTEMD_WANTS}+="fz-m1-touch-mode@%k.service"
