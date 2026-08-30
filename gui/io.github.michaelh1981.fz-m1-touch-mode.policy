@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+  "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+  "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>MichaelH1981</vendor>
+  <vendor_url>https://github.com/MichaelH1981/fz-m1-touch-mode</vendor_url>
+  <action id="io.github.michaelh1981.fz-m1-touch-mode.configure">
+    <description>Read or change the Panasonic FZ-M1 touch mode</description>
+    <description xml:lang="de">Touch-Modus des Panasonic FZ-M1 lesen oder ändern</description>
+    <message>Authentication is required to access the FZ-M1 touch controller</message>
+    <message xml:lang="de">Zum Zugriff auf den FZ-M1-Touchcontroller ist eine Authentifizierung erforderlich</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/local/sbin/fz-m1-touch-mode</annotate>
+  </action>
+</policyconfig>
