@@ -1,0 +1,267 @@
+#!/usr/bin/env python3
+"""Query and configure the Sharp touch controller in a Panasonic FZ-M1 MK3."""
+
+import argparse
+import fcntl
+import os
+from pathlib import Path
+import select
+import sys
+import time
+
+
+VID = 0x04DD
+PID = 0x9762
+REPORT_SIZE = 64
+
+
+class ProtocolError(RuntimeError):
+    pass
+
+
+def discover_hidraw():
+    matches = []
+    for entry in sorted(Path("/sys/class/hidraw").glob("hidraw*")):
+        try:
+            properties = (entry / "device" / "uevent").read_text(errors="replace")
+        except OSError:
+            continue
+        wanted = f"HID_ID=0003:{VID:08X}:{PID:08X}"
+        if wanted in properties:
+            matches.append(Path("/dev") / entry.name)
+    if not matches:
+        raise ProtocolError(f"Sharp {VID:04x}:{PID:04x} hidraw device not found")
+    if len(matches) != 1:
+        raise ProtocolError("multiple matching hidraw devices: " + ", ".join(map(str, matches)))
+    return matches[0]
+
+
+def request(payload):
+    if not 0 < len(payload) <= 61:
+        raise ValueError("invalid payload length")
+    frame = bytearray(REPORT_SIZE)
+    frame[0] = 0x06
+    frame[1] = 0x00
+    frame[2] = len(payload) + 3
+    frame[3:3 + len(payload)] = payload
+    return bytes(frame)
+
+
+class Controller:
+    def __init__(self, path, verbose=False):
+        self.path = Path(path)
+        self.verbose = verbose
+        self.fd = None
+
+    def __enter__(self):
+        self.fd = os.open(self.path, os.O_RDWR | os.O_CLOEXEC | os.O_NONBLOCK)
+        fcntl.flock(self.fd, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        if self.fd is not None:
+            os.close(self.fd)
+            self.fd = None
+
+    def transact(self, payload, command, timeout=5.0):
+        frame = request(payload)
+        if self.verbose:
+            print(f"TX {self.path}: {frame[:3 + len(payload)].hex(' ')}", file=sys.stderr)
+        written = os.write(self.fd, frame)
+        if written != REPORT_SIZE:
+            raise ProtocolError(f"short HID write: {written}/{REPORT_SIZE} bytes")
+
+        deadline = time.monotonic() + timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ProtocolError(f"timeout waiting for command 0x{command:02x} reply")
+            readable, _, _ = select.select([self.fd], [], [], remaining)
+            if not readable:
+                raise ProtocolError(f"timeout waiting for command 0x{command:02x} reply")
+            try:
+                reply = os.read(self.fd, REPORT_SIZE)
+            except BlockingIOError:
+                continue
+            if self.verbose:
+                print(f"RX {self.path}: {reply.hex(' ')}", file=sys.stderr)
+            # Before the Windows DLL's stream initialization, direct command replies
+            # use type 0x01. The DLL's normalized callback path uses type 0x05. Both
+            # retain the same command/status/data offsets.
+            if len(reply) < 5 or reply[0] != 0x05 or reply[1] not in (0x01, 0x05):
+                continue
+            if reply[3] != command:
+                continue
+            if reply[4] != 0:
+                raise ProtocolError(
+                    f"controller rejected command 0x{command:02x} with status 0x{reply[4]:02x}"
+                )
+            return reply
+
+    def get_mode(self):
+        reply = self.transact(bytes((0x08, 0x05, 0x00, 0x00)), 0x05)
+        if len(reply) < 8:
+            raise ProtocolError("short get-mode reply")
+        return reply[7]
+
+    def get_system_state(self):
+        reply = self.transact(bytes((0x08, 0x03, 0x00, 0x00)), 0x03)
+        if len(reply) < 11:
+            raise ProtocolError("short get-system-state reply")
+        return reply[7], reply[8], reply[9] | (reply[10] << 8)
+
+    def set_system_state(self, state1, state2, state_word):
+        payload = bytes((
+            0x08, 0x02, 0x00, 0x04, 0x00,
+            state1 & 0xff,
+            1 if state2 == 1 else 0,
+            state_word & 0xff,
+            (state_word >> 8) & 0xff,
+        ))
+        self.transact(payload, 0x02)
+
+    def set_raw_mode(self, mode):
+        if mode not in MODE_NAMES:
+            raise ValueError(f"unsupported raw mode 0x{mode:02x}")
+        self.transact(bytes((0x08, 0x04, 0x00, 0x01, 0x00, mode)), 0x04)
+
+    def change_mode(self, mode):
+        saved = self.get_system_state()
+        suspended = False
+        try:
+            self.set_system_state(0, saved[1], saved[2])
+            suspended = True
+            self.set_raw_mode(mode)
+        finally:
+            if suspended:
+                self.set_system_state(*saved)
+
+    def read_register(self, address):
+        address_bytes = address.to_bytes(4, "little")
+        payload = bytes((0x08, 0x54, 0x00, 0x05, 0x00)) + address_bytes + bytes((0x01,))
+        reply = self.transact(payload, 0x54)
+        if len(reply) < 15 or int.from_bytes(reply[7:11], "little") != address:
+            raise ProtocolError(f"malformed register-read reply for 0x{address:08x}")
+        return int.from_bytes(reply[11:15], "little")
+
+    def write_register(self, address, value):
+        payload = (
+            bytes((0x08, 0x55, 0x00, 0x08, 0x00))
+            + address.to_bytes(4, "little")
+            + value.to_bytes(4, "little")
+        )
+        self.transact(payload, 0x55)
+
+    def apply_profile(self, profile):
+        old_mode = self.get_mode()
+        old_values = {address: self.read_register(address) for address in profile["registers"]}
+        changed_mode = False
+        try:
+            self.change_mode(profile["mode"])
+            changed_mode = True
+            for address, value in profile["registers"].items():
+                self.write_register(address, value)
+            actual_mode = self.get_mode()
+            if actual_mode != profile["mode"]:
+                raise ProtocolError(
+                    f"verification failed: requested mode 0x{profile['mode']:02x}, got 0x{actual_mode:02x}"
+                )
+            for address, expected in profile["registers"].items():
+                actual = self.read_register(address)
+                if actual != expected:
+                    raise ProtocolError(
+                        f"register verification failed at 0x{address:08x}: "
+                        f"expected {expected}, got {actual}"
+                    )
+        except Exception:
+            for address, value in old_values.items():
+                self.write_register(address, value)
+            if changed_mode:
+                self.change_mode(old_mode)
+            raise
+
+
+MODE_NAMES = {
+    0x00: "touch (or glove base mode)",
+    0x01: "pen-touch",
+    0x02: "pen",
+    0x0A: "water",
+}
+
+FINGER_REGISTERS = (0x00201470, 0x00201858)
+PEN_REGISTERS = (0x00201478, 0x00201860)
+WATER_BOUND_REGISTER = 0x00201480
+WATER_FOOT_COUNT_REGISTER = 0x00201490
+
+PROFILES = {
+    "touch": {
+        "mode": 0x00,
+        "registers": {address: 400 for address in FINGER_REGISTERS},
+    },
+    "pen": {
+        "mode": 0x02,
+        "registers": {
+            **{address: 400 for address in FINGER_REGISTERS},
+            **{address: 80 for address in PEN_REGISTERS},
+        },
+    },
+    "pen-touch": {
+        "mode": 0x01,
+        "registers": {
+            **{address: 400 for address in FINGER_REGISTERS},
+            **{address: 80 for address in PEN_REGISTERS},
+        },
+    },
+    "glove": {
+        "mode": 0x00,
+        "registers": {address: 79 for address in FINGER_REGISTERS},
+    },
+    "water": {
+        "mode": 0x0A,
+        "registers": {
+            **{address: 550 for address in FINGER_REGISTERS},
+            WATER_BOUND_REGISTER: 2000,
+            WATER_FOOT_COUNT_REGISTER: 8,
+        },
+    },
+}
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("command", choices=("status", "state", "registers", *PROFILES))
+    parser.add_argument("--device", type=Path, help="override automatic VID/PID discovery")
+    parser.add_argument("--verbose", action="store_true")
+    args = parser.parse_args()
+
+    path = args.device or discover_hidraw()
+    with Controller(path, args.verbose) as controller:
+        if args.command == "status":
+            mode = controller.get_mode()
+            print(f"device: {path}")
+            print(f"raw mode: 0x{mode:02x}")
+            print(f"mode: {MODE_NAMES.get(mode, 'unknown')}")
+        elif args.command == "state":
+            state1, state2, state_word = controller.get_system_state()
+            print(f"device: {path}")
+            print(f"state1: 0x{state1:02x}")
+            print(f"state2: 0x{state2:02x}")
+            print(f"state word: 0x{state_word:04x}")
+        elif args.command == "registers":
+            addresses = (*FINGER_REGISTERS, *PEN_REGISTERS, WATER_BOUND_REGISTER, WATER_FOOT_COUNT_REGISTER)
+            for address in addresses:
+                value = controller.read_register(address)
+                print(f"0x{address:08x}: {value} (0x{value:x})")
+        else:
+            profile = PROFILES[args.command]
+            controller.apply_profile(profile)
+            print(f"device: {path}")
+            print(f"profile set and verified: {args.command} (raw mode 0x{profile['mode']:02x})")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (OSError, ProtocolError) as exc:
+        print(f"fz-m1-touch-mode: {exc}", file=sys.stderr)
+        raise SystemExit(1)
