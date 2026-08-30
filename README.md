@@ -145,9 +145,11 @@ Neustart lässt den Controller anschließend wieder ohne Linux-Automatik arbeite
 
 ## Änderungen am System
 
-Außer den drei oben genannten Dateien wurden für die Analyse auf dem Toughpad die
-Debian-Pakete `unshield` und `libunshield0` installiert. Es gab keine Änderung an
-Firmware, Secure Boot, LUKS, TPM, GRUB, initramfs, Partitionierung oder Kernel.
+Neben den oben aufgelisteten Dateien wurden für die Analyse die Debian-Pakete
+`unshield` und `libunshield0` installiert. Für das optionale Widget kam ausschließlich
+`gir1.2-ayatanaappindicator3-0.1` hinzu; Python-GTK und Polkit waren bereits vorhanden.
+Es gab keine Änderung an Firmware, Secure Boot, LUKS, TPM, GRUB, initramfs,
+Partitionierung oder Kernel.
 
 ## Technische Details und Grenzen
 
