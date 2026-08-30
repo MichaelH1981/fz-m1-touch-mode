@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+"""Cross-desktop tray controller for Panasonic FZ-M1 touch profiles."""
+
+import json
+import locale
+import subprocess
+import threading
+from pathlib import Path
+
+import gi
+
+gi.require_version("Gtk", "3.0")
+gi.require_version("AyatanaAppIndicator3", "0.1")
+from gi.repository import AyatanaAppIndicator3, GLib, Gtk  # noqa: E402
+
+
+TOOL = "/usr/local/sbin/fz-m1-touch-mode"
+STATUS_CACHE = Path("/run/fz-m1-touch-mode/status.json")
+PROFILES = ("touch", "pen", "pen-touch", "glove", "water")
+GERMAN = (locale.getlocale()[0] or "").lower().startswith("de")
+
+TEXT = {
+    "title": ("FZ-M1 Touch-Modus", "FZ-M1 touch mode"),
+    "checking": ("Status: wird gelesen …", "Status: checking …"),
+    "unknown": ("unbekannt", "unknown"),
+    "error": ("Fehler", "Error"),
+    "refresh": ("Aktualisieren", "Refresh"),
+    "quit": ("Beenden", "Quit"),
+    "auth_cancel": ("Authentifizierung abgebrochen", "Authentication cancelled"),
+}
+
+PROFILE_LABELS = {
+    "touch": ("Nur Touch", "Touch only"),
+    "pen": ("Nur Stift", "Pen only"),
+    "pen-touch": ("Stift + Touch", "Pen + Touch"),
+    "glove": ("Handschuh", "Glove"),
+    "water": ("Regen / Wasser", "Rain / Water"),
+}
+
+
+def tr(key):
+    return TEXT[key][0 if GERMAN else 1]
+
+
+def profile_label(profile):
+    return PROFILE_LABELS.get(profile, (profile, profile))[0 if GERMAN else 1]
+
+
+class Tray:
+    def __init__(self):
+        self.busy = False
+        self.selecting = False
+        self.indicator = AyatanaAppIndicator3.Indicator.new(
+            "fz-m1-touch-mode",
+            "input-tablet-symbolic",
+            AyatanaAppIndicator3.IndicatorCategory.HARDWARE,
+        )
+        self.indicator.set_status(AyatanaAppIndicator3.IndicatorStatus.ACTIVE)
+        self.indicator.set_title(tr("title"))
+
+        menu = Gtk.Menu()
+        self.status_item = Gtk.MenuItem(label=tr("checking"))
+        self.status_item.set_sensitive(False)
+        menu.append(self.status_item)
+        menu.append(Gtk.SeparatorMenuItem())
+
+        self.profile_items = {}
+        group = None
+        for profile in PROFILES:
+            item = Gtk.RadioMenuItem.new_with_label(group, profile_label(profile))
+            if group is None:
+                group = item.get_group()
+            item.connect("toggled", self.on_profile, profile)
+            self.profile_items[profile] = item
+            menu.append(item)
+
+        menu.append(Gtk.SeparatorMenuItem())
+        refresh = Gtk.MenuItem(label=tr("refresh"))
+        refresh.connect("activate", lambda _item: self.run_command("status"))
+        menu.append(refresh)
+        quit_item = Gtk.MenuItem(label=tr("quit"))
+        quit_item.connect("activate", lambda _item: Gtk.main_quit())
+        menu.append(quit_item)
+        menu.show_all()
+        self.indicator.set_menu(menu)
+
+        GLib.idle_add(self.load_cached_status)
+
+    def load_cached_status(self):
+        try:
+            data = json.loads(STATUS_CACHE.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            self.status_item.set_label(f"Status: {tr('unknown')}")
+            return False
+        self.finish_success(data)
+        return False
+
+    def set_sensitive(self, value):
+        for item in self.profile_items.values():
+            item.set_sensitive(value)
+
+    def on_profile(self, item, profile):
+        if item.get_active() and not self.selecting and not self.busy:
+            self.run_command(profile)
+
+    def run_command(self, command):
+        if self.busy:
+            return False
+        self.busy = True
+        self.set_sensitive(False)
+        self.status_item.set_label(tr("checking"))
+        threading.Thread(target=self.worker, args=(command,), daemon=True).start()
+        return False
+
+    def worker(self, command):
+        try:
+            result = subprocess.run(
+                ["pkexec", TOOL, command, "--json"],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=30,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            GLib.idle_add(self.finish_error, "Controller timeout")
+            return
+        if result.returncode == 0:
+            try:
+                data = json.loads(result.stdout.strip().splitlines()[-1])
+            except (IndexError, json.JSONDecodeError):
+                GLib.idle_add(self.finish_error, "Invalid tool response")
+                return
+            GLib.idle_add(self.finish_success, data)
+        else:
+            message = result.stderr.strip()
+            if result.returncode in (126, 127) and not message:
+                message = tr("auth_cancel")
+            GLib.idle_add(self.finish_error, message or f"exit {result.returncode}")
+
+    def finish_success(self, data):
+        profile = data.get("profile", "unknown")
+        label = profile_label(profile) if profile != "unknown" else tr("unknown")
+        self.status_item.set_label(f"Status: {label}")
+        self.indicator.set_title(f"{tr('title')}: {label}")
+        self.selecting = True
+        for name, item in self.profile_items.items():
+            item.set_active(name == profile)
+        self.selecting = False
+        self.busy = False
+        self.set_sensitive(True)
+        return False
+
+    def finish_error(self, message):
+        self.status_item.set_label(f"{tr('error')}: {message}")
+        self.busy = False
+        self.set_sensitive(True)
+        return False
+
+
+if __name__ == "__main__":
+    Tray()
+    Gtk.main()
