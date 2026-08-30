@@ -9,6 +9,10 @@ case "$version" in
         ;;
 esac
 
+export LC_ALL=C
+export TZ=UTC
+export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-1788089400}
+
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 source_dir=$(CDPATH= cd -- "$script_dir/.." && pwd)
 output_dir=${2:-"$source_dir/dist"}
@@ -63,7 +67,8 @@ package="$output_dir/fz-m1-touch-mode_${version}_all.deb"
 dpkg-deb --root-owner-group --build "$package_root" "$package"
 
 archive="$output_dir/fz-m1-touch-mode-${version}.tar.gz"
-tar -C "$source_dir" -czf "$archive" \
+tar --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 --numeric-owner \
+    -C "$source_dir" -czf "$archive" \
     --transform "s#^#fz-m1-touch-mode-${version}/#" \
     .gitignore LICENSE NOTES.md README.md README.en.md SECURITY.md \
     gui packaging systemd tools/fz-m1-touch-mode udev
