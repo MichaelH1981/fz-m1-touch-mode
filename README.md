@@ -57,10 +57,11 @@ Das gemeinsame Ayatana-StatusNotifier-Widget zeigt das zuletzt vom Controller
 bestätigte Profil und bietet alle fünf Modi direkt im Panelmenü an. Es funktioniert
 mit Plasma und XFCE; zwei getrennte Panel-Plugins sind nicht erforderlich.
 
-Das Widget läuft ohne Root-Rechte. Nur das eng begrenzte CLI wird beim Aktualisieren
-oder Umschalten über Polkit privilegiert gestartet. Die Polkit-Regel akzeptiert nur
-den festen Pfad `/usr/local/sbin/fz-m1-touch-mode`; das CLI selbst akzeptiert nur die
-dokumentierten Kommandos. Der beim Boot verifizierte Status liegt lesbar unter
+Das Widget läuft ohne Root-Rechte. Ein kleiner Polkit-Helfer akzeptiert ausschließlich
+die sechs Aktionen `status`, `touch`, `pen`, `pen-touch`, `glove` und `water` und ruft
+damit das CLI auf. Nur dieser feste Helferpfad ist für den aktiven lokalen Benutzer
+ohne Passwortabfrage freigegeben; Diagnoseparameter und beliebige Gerätepfade sind
+darüber nicht erreichbar. Der beim Boot verifizierte Status liegt lesbar unter
 `/run/fz-m1-touch-mode/status.json`, sodass beim Anmelden kein Passwortdialog nötig
 ist.
 
@@ -69,14 +70,15 @@ Installation unter Debian 13:
 ```sh
 sudo apt install python3-gi gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1 pkexec
 sudo install -o root -g root -m 0755 gui/fz-m1-touch-tray /usr/local/bin/
+sudo install -d -o root -g root -m 0755 /usr/local/libexec
+sudo install -o root -g root -m 0755 gui/fz-m1-touch-mode-helper /usr/local/libexec/
 sudo install -o root -g root -m 0644 gui/io.github.michaelh1981.fz-m1-touch-mode.policy /usr/share/polkit-1/actions/
 sudo install -o root -g root -m 0644 gui/fz-m1-touch-mode-tray.desktop /etc/xdg/autostart/
 ```
 
 Zum sofortigen Test kann `fz-m1-touch-tray` in einer grafischen Sitzung gestartet
-werden. Beim nächsten Plasma-/XFCE-Login startet es automatisch. „Aktualisieren“ und
-Modusänderungen können eine Administrator-Authentifizierung anfordern; Polkit hält
-eine erfolgreiche Autorisierung kurzzeitig vor.
+werden. Beim nächsten Plasma-/XFCE-Login startet es automatisch. Der aktive lokale
+Desktopbenutzer kann Status und Profile ohne Passwortdialog bedienen.
 
 ## Automatik
 
@@ -88,6 +90,7 @@ startet systemd die passende Instanz und setzt `pen-touch`:
 - `/etc/systemd/system/fz-m1-touch-mode@.service`
 - `/usr/local/sbin/fz-m1-touch-mode`
 - `/usr/local/bin/fz-m1-touch-tray` (bei installierter GUI)
+- `/usr/local/libexec/fz-m1-touch-mode-helper` (GUI)
 - `/usr/share/polkit-1/actions/io.github.michaelh1981.fz-m1-touch-mode.policy` (GUI)
 - `/etc/xdg/autostart/fz-m1-touch-mode-tray.desktop` (GUI)
 
@@ -134,6 +137,7 @@ sudo rm /etc/udev/rules.d/99-fz-m1-touch-mode.rules
 sudo rm /etc/systemd/system/fz-m1-touch-mode@.service
 sudo rm -f /etc/xdg/autostart/fz-m1-touch-mode-tray.desktop
 sudo rm -f /usr/share/polkit-1/actions/io.github.michaelh1981.fz-m1-touch-mode.policy
+sudo rm -f /usr/local/libexec/fz-m1-touch-mode-helper
 sudo rm -f /usr/local/bin/fz-m1-touch-tray
 sudo rm /usr/local/sbin/fz-m1-touch-mode
 sudo systemctl daemon-reload
@@ -150,6 +154,30 @@ Neben den oben aufgelisteten Dateien wurden für die Analyse die Debian-Pakete
 `gir1.2-ayatanaappindicator3-0.1` hinzu; Python-GTK und Polkit waren bereits vorhanden.
 Es gab keine Änderung an Firmware, Secure Boot, LUKS, TPM, GRUB, initramfs,
 Partitionierung oder Kernel.
+
+## Debian-Paket und Quellarchiv
+
+Die GitHub-Veröffentlichung enthält ein architekturunabhängiges Debian-Paket, das
+CLI, dynamische udev/systemd-Aktivierung, GUI, Autostart und Polkit-Regel gemeinsam
+installiert:
+
+```sh
+sha256sum -c SHA256SUMS
+sudo apt install ./fz-m1-touch-mode_0.1.0_all.deb
+```
+
+Das vollständige öffentliche Quellarchiv heißt
+`fz-m1-touch-mode-0.1.0.tar.gz`. Es enthält ausdrücklich keine Panasonic-Binärdateien,
+Decompiler-Ausgaben oder gerätespezifischen Diagnoseprotokolle.
+
+Das Paket kann auf einem Debian-System reproduzierbar aus dem Quellbaum gebaut
+werden:
+
+```sh
+sh packaging/build-deb.sh 0.1.0
+```
+
+Die Ergebnisse und ihre Prüfsummen landen in `dist/`.
 
 ## Technische Details und Grenzen
 
