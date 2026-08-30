@@ -14,7 +14,11 @@ gi.require_version("AyatanaAppIndicator3", "0.1")
 from gi.repository import AyatanaAppIndicator3, GLib, Gtk  # noqa: E402
 
 
-TOOL = "/usr/local/sbin/fz-m1-touch-mode"
+HELPER = next(
+    (path for path in ("/usr/libexec/fz-m1-touch-mode-helper", "/usr/local/libexec/fz-m1-touch-mode-helper")
+     if Path(path).is_file()),
+    "/usr/local/libexec/fz-m1-touch-mode-helper",
+)
 STATUS_CACHE = Path("/run/fz-m1-touch-mode/status.json")
 PROFILES = ("touch", "pen", "pen-touch", "glove", "water")
 GERMAN = (locale.getlocale()[0] or "").lower().startswith("de")
@@ -115,7 +119,7 @@ class Tray:
     def worker(self, command):
         try:
             result = subprocess.run(
-                ["pkexec", TOOL, command, "--json"],
+                ["pkexec", HELPER, command],
                 text=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
