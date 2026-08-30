@@ -46,6 +46,39 @@ Every changed mode and register is read back before the command reports success.
 application fails, the tool attempts to restore the previous mode and affected
 values.
 
+## KDE Plasma and XFCE panel widget
+
+One Ayatana StatusNotifier tray application supports both Plasma and XFCE. Its menu
+shows the last controller-verified profile and offers all five modes, so separate
+desktop-specific panel plugins are unnecessary.
+
+The tray runs unprivileged. Only the narrowly scoped CLI is launched through Polkit
+when refreshing or changing the profile. The policy covers the fixed
+`/usr/local/sbin/fz-m1-touch-mode` path, while the CLI itself accepts only the
+documented commands. Boot-time verification is cached read-only in
+`/run/fz-m1-touch-mode/status.json`, avoiding an authentication dialog at login.
+
+Install on Debian 13:
+
+```sh
+sudo apt install python3-gi gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1 pkexec
+sudo install -o root -g root -m 0755 gui/fz-m1-touch-tray /usr/local/bin/
+sudo install -o root -g root -m 0644 gui/io.github.michaelh1981.fz-m1-touch-mode.policy /usr/share/polkit-1/actions/
+sudo install -o root -g root -m 0644 gui/fz-m1-touch-mode-tray.desktop /etc/xdg/autostart/
+```
+
+Run `fz-m1-touch-tray` inside a graphical session for an immediate test. It starts
+automatically at the next Plasma or XFCE login. Refresh and profile changes may ask
+for administrator authentication; Polkit briefly retains a successful authorization.
+
+Remove the optional widget with:
+
+```sh
+sudo rm /etc/xdg/autostart/fz-m1-touch-mode-tray.desktop
+sudo rm /usr/share/polkit-1/actions/io.github.michaelh1981.fz-m1-touch-mode.policy
+sudo rm /usr/local/bin/fz-m1-touch-tray
+```
+
 ## Installation
 
 ```sh
