@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=FZ-M1 Touch Mode
+Name[de]=FZ-M1 Touch-Modus
+Comment=Show and select Panasonic FZ-M1 touch profiles
+Comment[de]=Panasonic-FZ-M1-Touchprofile anzeigen und umschalten
+Exec=/usr/local/bin/fz-m1-touch-tray
+Icon=input-tablet
+Terminal=false
+Categories=Settings;HardwareSettings;
+OnlyShowIn=KDE;XFCE;
+X-GNOME-Autostart-enabled=true
