@@ -3,8 +3,9 @@
 [Deutsche Fassung](README.md)
 
 > **Authorship:** Research, static analysis, protocol reconstruction,
-> implementation, testing, and documentation were performed by **OpenAI Codex**.
-> The test hardware was provided by the repository maintainer.
+> implementation, testing, and documentation were performed by **OpenAI Codex** at
+> repository owner **MichaelH1981**'s request. The owner provided the test hardware
+> and authorized and supervised the work performed on the device.
 
 This project switches the Sharp `04dd:9762` touchscreen controller in a Panasonic
 Toughpad FZ-M1 MK3 to Panasonic's original **Pen/Touch mode**, without Windows.
@@ -61,6 +62,9 @@ systemd instance for the dynamically assigned hidraw node. A real reboot test pa
 when the device changed from `hidraw0` to `hidraw2`; Pen/Touch was still applied and
 verified automatically.
 
+A second independent boot, with the node changing again to `hidraw4`, also passed
+automatic activation and read-only mode verification.
+
 ## Removal
 
 Optionally select `touch` or `water` before removing the automatic setup, then run:
@@ -101,4 +105,4 @@ Community posts were not used as the evidentiary basis for proprietary HID write
 
 ## License
 
-[MIT](LICENSE) – Copyright © 2026 fz-m1-touch-mode contributors.
+[MIT](LICENSE) – Copyright © 2026 MichaelH1981.
