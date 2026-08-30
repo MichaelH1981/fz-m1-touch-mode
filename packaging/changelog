@@ -1,0 +1,7 @@
+fz-m1-touch-mode (0.1.0) unstable; urgency=medium
+
+  * Initial public release.
+  * Add verified Touch, Pen, Pen/Touch, Glove, and Water profiles.
+  * Add dynamic udev/systemd activation and Plasma/XFCE tray widget.
+
+ -- MichaelH1981 <noreply@users.noreply.github.com>  Sun, 30 Aug 2026 13:30:00 +0200
