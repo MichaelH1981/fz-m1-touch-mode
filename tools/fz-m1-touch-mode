@@ -3,6 +3,7 @@
 
 import argparse
 import fcntl
+import json
 import os
 from pathlib import Path
 import select
@@ -13,6 +14,7 @@ import time
 VID = 0x04DD
 PID = 0x9762
 REPORT_SIZE = 64
+STATUS_CACHE = Path("/run/fz-m1-touch-mode/status.json")
 
 
 class ProtocolError(RuntimeError):
@@ -227,20 +229,63 @@ PROFILES = {
 }
 
 
+def status_snapshot(controller, path):
+    mode = controller.get_mode()
+    values = {
+        address: controller.read_register(address)
+        for address in (*FINGER_REGISTERS, *PEN_REGISTERS, WATER_BOUND_REGISTER, WATER_FOOT_COUNT_REGISTER)
+    }
+    profile_name = "unknown"
+    for name, profile in PROFILES.items():
+        if mode != profile["mode"]:
+            continue
+        if all(values[address] == expected for address, expected in profile["registers"].items()):
+            profile_name = name
+            break
+    return {
+        "device": str(path),
+        "profile": profile_name,
+        "raw_mode": mode,
+        "registers": {f"0x{address:08x}": value for address, value in values.items()},
+    }
+
+
+def write_status_cache(snapshot):
+    if os.geteuid() != 0:
+        return
+    STATUS_CACHE.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+    cached = dict(snapshot)
+    cached["timestamp"] = int(time.time())
+    temporary = STATUS_CACHE.with_name(".status.json.tmp")
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_CLOEXEC, 0o644)
+    with os.fdopen(fd, "w", encoding="utf-8") as stream:
+        json.dump(cached, stream, sort_keys=True)
+        stream.write("\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, STATUS_CACHE)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=("status", "state", "registers", *PROFILES))
     parser.add_argument("--device", type=Path, help="override automatic VID/PID discovery")
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--json", action="store_true", help="machine-readable output for GUI integration")
     args = parser.parse_args()
 
     path = args.device or discover_hidraw()
     with Controller(path, args.verbose) as controller:
         if args.command == "status":
-            mode = controller.get_mode()
-            print(f"device: {path}")
-            print(f"raw mode: 0x{mode:02x}")
-            print(f"mode: {MODE_NAMES.get(mode, 'unknown')}")
+            snapshot = status_snapshot(controller, path)
+            write_status_cache(snapshot)
+            if args.json:
+                print(json.dumps(snapshot, sort_keys=True))
+            else:
+                print(f"device: {path}")
+                print(f"raw mode: 0x{snapshot['raw_mode']:02x}")
+                print(f"mode: {MODE_NAMES.get(snapshot['raw_mode'], 'unknown')}")
+                print(f"profile: {snapshot['profile']}")
         elif args.command == "state":
             state1, state2, state_word = controller.get_system_state()
             print(f"device: {path}")
@@ -255,8 +300,17 @@ def main():
         else:
             profile = PROFILES[args.command]
             controller.apply_profile(profile)
-            print(f"device: {path}")
-            print(f"profile set and verified: {args.command} (raw mode 0x{profile['mode']:02x})")
+            if args.json:
+                result = status_snapshot(controller, path)
+                result["verified"] = result["profile"] == args.command
+                write_status_cache(result)
+                print(json.dumps(result, sort_keys=True))
+            else:
+                result = status_snapshot(controller, path)
+                result["verified"] = result["profile"] == args.command
+                write_status_cache(result)
+                print(f"device: {path}")
+                print(f"profile set and verified: {args.command} (raw mode 0x{profile['mode']:02x})")
 
 
 if __name__ == "__main__":
