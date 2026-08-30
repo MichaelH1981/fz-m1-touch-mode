@@ -51,6 +51,33 @@ sudo /usr/local/sbin/fz-m1-touch-mode water
 Nach jedem Schreiben werden Modus und alle betroffenen Register zurückgelesen. Bei
 einem Fehler versucht das Werkzeug, den vorherigen Zustand wiederherzustellen.
 
+## Statusleisten-Widget für KDE Plasma und XFCE
+
+Das gemeinsame Ayatana-StatusNotifier-Widget zeigt das zuletzt vom Controller
+bestätigte Profil und bietet alle fünf Modi direkt im Panelmenü an. Es funktioniert
+mit Plasma und XFCE; zwei getrennte Panel-Plugins sind nicht erforderlich.
+
+Das Widget läuft ohne Root-Rechte. Nur das eng begrenzte CLI wird beim Aktualisieren
+oder Umschalten über Polkit privilegiert gestartet. Die Polkit-Regel akzeptiert nur
+den festen Pfad `/usr/local/sbin/fz-m1-touch-mode`; das CLI selbst akzeptiert nur die
+dokumentierten Kommandos. Der beim Boot verifizierte Status liegt lesbar unter
+`/run/fz-m1-touch-mode/status.json`, sodass beim Anmelden kein Passwortdialog nötig
+ist.
+
+Installation unter Debian 13:
+
+```sh
+sudo apt install python3-gi gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1 pkexec
+sudo install -o root -g root -m 0755 gui/fz-m1-touch-tray /usr/local/bin/
+sudo install -o root -g root -m 0644 gui/io.github.michaelh1981.fz-m1-touch-mode.policy /usr/share/polkit-1/actions/
+sudo install -o root -g root -m 0644 gui/fz-m1-touch-mode-tray.desktop /etc/xdg/autostart/
+```
+
+Zum sofortigen Test kann `fz-m1-touch-tray` in einer grafischen Sitzung gestartet
+werden. Beim nächsten Plasma-/XFCE-Login startet es automatisch. „Aktualisieren“ und
+Modusänderungen können eine Administrator-Authentifizierung anfordern; Polkit hält
+eine erfolgreiche Autorisierung kurzzeitig vor.
+
 ## Automatik
 
 Die udev-Regel erkennt ausschließlich HID-Geräte mit VID/PID `04dd:9762`; sie hängt
@@ -60,6 +87,9 @@ startet systemd die passende Instanz und setzt `pen-touch`:
 - `/etc/udev/rules.d/99-fz-m1-touch-mode.rules`
 - `/etc/systemd/system/fz-m1-touch-mode@.service`
 - `/usr/local/sbin/fz-m1-touch-mode`
+- `/usr/local/bin/fz-m1-touch-tray` (bei installierter GUI)
+- `/usr/share/polkit-1/actions/io.github.michaelh1981.fz-m1-touch-mode.policy` (GUI)
+- `/etc/xdg/autostart/fz-m1-touch-mode-tray.desktop` (GUI)
 
 Kontrolle des aktuellen Dienstes (der hidraw-Index kann abweichen):
 
@@ -102,6 +132,9 @@ Dann die Automatik und Dateien entfernen:
 sudo systemctl stop 'fz-m1-touch-mode@*.service'
 sudo rm /etc/udev/rules.d/99-fz-m1-touch-mode.rules
 sudo rm /etc/systemd/system/fz-m1-touch-mode@.service
+sudo rm -f /etc/xdg/autostart/fz-m1-touch-mode-tray.desktop
+sudo rm -f /usr/share/polkit-1/actions/io.github.michaelh1981.fz-m1-touch-mode.policy
+sudo rm -f /usr/local/bin/fz-m1-touch-tray
 sudo rm /usr/local/sbin/fz-m1-touch-mode
 sudo systemctl daemon-reload
 sudo udevadm control --reload
