@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+"""Strict Polkit entry point for the FZ-M1 tray application."""
+
+import os
+import sys
+from pathlib import Path
+
+
+TOOL = next(
+    (path for path in ("/usr/sbin/fz-m1-touch-mode", "/usr/local/sbin/fz-m1-touch-mode")
+     if Path(path).is_file()),
+    "/usr/local/sbin/fz-m1-touch-mode",
+)
+ALLOWED = {"status", "touch", "pen", "pen-touch", "glove", "water"}
+
+
+if len(sys.argv) != 2 or sys.argv[1] not in ALLOWED:
+    print("fz-m1-touch-mode-helper: unsupported command", file=sys.stderr)
+    raise SystemExit(64)
+
+os.execv(TOOL, (TOOL, sys.argv[1], "--json"))
