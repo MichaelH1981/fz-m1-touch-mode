@@ -3,7 +3,9 @@
 [English version](README.en.md)
 
 > **Urheberschaft:** Recherche, statische Analyse, Protokollrekonstruktion,
-> Implementierung, Tests und Dokumentation wurden von **OpenAI Codex** durchgeführt.
+> Implementierung, Tests und Dokumentation wurden von **OpenAI Codex** im Auftrag
+> des Repository-Inhabers **MichaelH1981** durchgeführt. Der Inhaber stellte die
+> Testhardware bereit und autorisierte und begleitete die Arbeiten am Gerät.
 
 Diese Lösung schaltet den Sharp-Touchcontroller `04dd:9762` des Panasonic Toughpad
 FZ-M1 MK3 ohne Windows in Panasonics originalen **Pen/Touch-Modus**. Finger und der
@@ -70,6 +72,9 @@ Der echte Neustarttest war erfolgreich: Das Gerät erschien danach als `/dev/hid
 statt zuvor `/dev/hidraw0`. Die Regel startete dennoch automatisch
 `fz-m1-touch-mode@hidraw2.service`; Dienst, Modus `0x01` und alle Pen/Touch-Werte
 wurden anschließend erfolgreich kontrolliert.
+
+Ein zweiter unabhängiger Start mit erneut verändertem Gerätenamen (`hidraw4`)
+bestätigte die automatische Aktivierung ebenfalls.
 
 ## Installation aus diesem Verzeichnis
 
@@ -139,4 +144,4 @@ Community-Beiträge waren dafür keine Beweisgrundlage.
 
 ## Lizenz
 
-[MIT](LICENSE) – Copyright © 2026 fz-m1-touch-mode contributors.
+[MIT](LICENSE) – Copyright © 2026 MichaelH1981.
