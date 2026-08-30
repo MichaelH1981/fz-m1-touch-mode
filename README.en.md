@@ -52,10 +52,11 @@ One Ayatana StatusNotifier tray application supports both Plasma and XFCE. Its m
 shows the last controller-verified profile and offers all five modes, so separate
 desktop-specific panel plugins are unnecessary.
 
-The tray runs unprivileged. Only the narrowly scoped CLI is launched through Polkit
-when refreshing or changing the profile. The policy covers the fixed
-`/usr/local/sbin/fz-m1-touch-mode` path, while the CLI itself accepts only the
-documented commands. Boot-time verification is cached read-only in
+The tray runs unprivileged. A small Polkit helper accepts exactly the six actions
+`status`, `touch`, `pen`, `pen-touch`, `glove`, and `water`, then invokes the CLI.
+Only that fixed helper path is authorized without a password for the active local
+user; diagnostic options and arbitrary device paths cannot be reached through it.
+Boot-time verification is cached read-only in
 `/run/fz-m1-touch-mode/status.json`, avoiding an authentication dialog at login.
 
 Install on Debian 13:
@@ -63,21 +64,45 @@ Install on Debian 13:
 ```sh
 sudo apt install python3-gi gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1 pkexec
 sudo install -o root -g root -m 0755 gui/fz-m1-touch-tray /usr/local/bin/
+sudo install -d -o root -g root -m 0755 /usr/local/libexec
+sudo install -o root -g root -m 0755 gui/fz-m1-touch-mode-helper /usr/local/libexec/
 sudo install -o root -g root -m 0644 gui/io.github.michaelh1981.fz-m1-touch-mode.policy /usr/share/polkit-1/actions/
 sudo install -o root -g root -m 0644 gui/fz-m1-touch-mode-tray.desktop /etc/xdg/autostart/
 ```
 
 Run `fz-m1-touch-tray` inside a graphical session for an immediate test. It starts
-automatically at the next Plasma or XFCE login. Refresh and profile changes may ask
-for administrator authentication; Polkit briefly retains a successful authorization.
+automatically at the next Plasma or XFCE login. The active local desktop user can
+refresh and change profiles without an authentication dialog.
 
 Remove the optional widget with:
 
 ```sh
 sudo rm /etc/xdg/autostart/fz-m1-touch-mode-tray.desktop
 sudo rm /usr/share/polkit-1/actions/io.github.michaelh1981.fz-m1-touch-mode.policy
+sudo rm /usr/local/libexec/fz-m1-touch-mode-helper
 sudo rm /usr/local/bin/fz-m1-touch-tray
 ```
+
+## Debian package and source archive
+
+The GitHub release provides an architecture-independent Debian package containing
+the CLI, dynamic udev/systemd activation, GUI, autostart entry, and Polkit policy:
+
+```sh
+sha256sum -c SHA256SUMS
+sudo apt install ./fz-m1-touch-mode_0.1.0_all.deb
+```
+
+`fz-m1-touch-mode-0.1.0.tar.gz` contains the complete public source. Panasonic
+binaries, decompiler output, and device-specific diagnostic captures are excluded.
+
+Rebuild both artifacts on Debian with:
+
+```sh
+sh packaging/build-deb.sh 0.1.0
+```
+
+Artifacts and checksums are written to `dist/`.
 
 ## Installation
 
